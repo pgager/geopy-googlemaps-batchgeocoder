@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import csv
+import os
 import time
 from csv import Dialect
 
@@ -13,7 +14,9 @@ from geopy.exc import (
 from geopy.geocoders import GoogleV3
 
 # used to set a google geocoding query by merging this value into one string with comma separated
-ADDRESS_COLUMNS_NAME = ["name", "addressline1", "town"]
+ADDRESS_COLUMNS_NAME = ["FULL_ADDRESS", "Localidad", "PROV_NAME", "COUNTRY"]
+# used to set the locality columns, which can be used to pick the best location in case google returns multiple results
+LOCALITY_COLUMN_NAMES = ["Localidad", "PROV_NAME"]
 # used to define component restrictions for google geocoding
 COMPONENT_RESTRICTIONS_COLUMNS_NAME = {}
 
@@ -21,19 +24,21 @@ COMPONENT_RESTRICTIONS_COLUMNS_NAME = {}
 NEW_COLUMNS_NAME = ["Lat", "Long", "Error", "formatted_address", "location_type"]
 
 # delimiter for input csv file
-DELIMITER = ";"
+DELIMITER = ","
 
 # Automatically retry X times when GeocoderErrors occur (sometimes the API Service return intermittent failures).
 RETRY_COUNTER_CONST = 5
 
 # name for output csv file
-INPUT_CSV_FILE = "hairdresser_sample_addresses.csv"
+INPUT_CSV_FILE = "./tbl1_500.csv"
 
 # name for output csv file
-OUTPUT_CSV_FILE = "hairdresser_sample_addresses_processed.csv"
+OUTPUT_CSV_FILE = "./updated_tbl1_500.csv"
 
 # google keys - see https://dev.to/gaelsimon/bulk-geocode-addresses-using-google-maps-and-geopy-5bmg for more details
-GOOGLE_API_KEY = "AIzaSyAQanzCC6g4sR3tgj8tmFlByqhGFVKBFZI"  # it's the new mandatory parameter
+GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")  # it's the new mandatory parameter
+if not GOOGLE_API_KEY:
+    raise ValueError("Missing environment variable GOOGLE_API_KEY")
 
 
 # dialect to manage different format of CSV
@@ -83,8 +88,11 @@ def process_addresses_from_csv():
                     for key, value in COMPONENT_RESTRICTIONS_COLUMNS_NAME.items():
                         component_restrictions[key] = record[value]
 
-                # geocode the built line_address and passing optional componentRestrictions
-                location = geocode_address(geo_locator, line_address, component_restrictions)
+                # localities can be use to rank multiple results against each other
+                localities = [record[column_name] for column_name in LOCALITY_COLUMN_NAMES]
+
+                # geocode the built line_address, passing optional localities and componentRestrictions
+                location = geocode_address(geo_locator, line_address, localities, component_restrictions)
 
                 # build a new temp_row for each csv entry to append to process_data Array
                 # first, append existing fieldnames value to this temp_row
@@ -105,16 +113,33 @@ def process_addresses_from_csv():
                     print(temp_row)
 
 
-def geocode_address(geo_locator, line_address, component_restrictions=None, retry_counter=1):
+def geocode_address(geo_locator, line_address, localities=None, component_restrictions=None, retry_counter=1):
     try:
         # the geopy GoogleV3 geocoding call
-        location = geo_locator.geocode(line_address, components=component_restrictions)
+        location_results = geo_locator.geocode(line_address, exactly_one=False, components=component_restrictions)
 
-        if location is not None:
+        selected_location = None
+        if location_results:
+            for location in location_results:
+                if not selected_location:  # always set the first result
+                    selected_location = location
+                else:
+                    # check if this location is better
+                    if location.raw:
+                        address_components = location.raw.get('address_components', [])
+                        for address_component in address_components:
+                            long_name = address_component.get('long_name', '')
+                            short_name = address_component.get('short_name', '')
+                            for locality in localities:
+                                if locality in [long_name, short_name]:
+                                    selected_location = location
+                                    break
+
+        if selected_location is not None:
             # build a dict to append to output CSV
-            location_result = {"Lat": location.latitude, "Long": location.longitude, "Error": "",
-                               "formatted_address": location.raw['formatted_address'],
-                               "location_type": location.raw['geometry']['location_type']}
+            location_result = {"Lat": selected_location.latitude, "Long": selected_location.longitude, "Error": "",
+                               "formatted_address": selected_location.raw['formatted_address'],
+                               "location_type": selected_location.raw['geometry']['location_type']}
         else:
             location_result = {"Lat": 0, "Long": 0,
                                "Error": "None location found, please verify your address line",
@@ -132,7 +157,7 @@ def geocode_address(geo_locator, line_address, component_restrictions=None, retr
     # To retry because intermittent failures and timeout sometimes occurs
     except (GeocoderTimedOut, GeocoderQueryError) as geocodingerror:
         if retry_counter < RETRY_COUNTER_CONST:
-            return geocode_address(geo_locator, line_address, component_restrictions, retry_counter + 1)
+            return geocode_address(geo_locator, line_address, localities, component_restrictions, retry_counter + 1)
         else:
             if hasattr(geocodingerror, 'message'):
                 error_message = geocodingerror.message
@@ -143,8 +168,8 @@ def geocode_address(geo_locator, line_address, component_restrictions=None, retr
     # To retry because intermittent failures and timeout sometimes occurs
     except BaseException as error:
         if retry_counter < RETRY_COUNTER_CONST:
-            time.sleep(5)
-            return geocode_address(geo_locator, line_address, component_restrictions, retry_counter + 1)
+            time.sleep(2)
+            return geocode_address(geo_locator, line_address, localities, component_restrictions, retry_counter + 1)
         else:
             location_result = {"Lat": 0, "Long": 0, "Error": error, "formatted_address": "",
                                "location_type": ""}
