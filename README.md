@@ -12,29 +12,34 @@
 
 sample usage:
 
+    export GOOGLE_API_KEY=<your google api key>
     python google_batch_geocoder.py
 
 
 ## Mandatory parameters
+
+Your Google api key should be set as an environment variable before running the script.
+
+    export GOOGLE_API_KEY=<your google api key>
   
-- ADDRESS_COLUMNS_NAME = ["name", "addressline1", "town"]
+- **ADDRESS_COLUMNS_NAME** = ["name", "addressline1", "town"]
 *used to set a google geocoding query by merging this value into one string with comma separated. it depends on your CSV Input File*
 
-- NEW_COLUMNS_NAME = ["Lat", "Long", "Error", "formatted_address", "location_type"]
+- **NEW_COLUMNS_NAME** = ["Lat", "Long", "Error", "formatted_address", "location_type"]
 *appended columns name to processed data csv*
 
-- DELIMITER = ";"
+- **DELIMITER** = ";"
 *delimiter for input csv file*
 
-- INPUT_CSV_FILE = "./hairdresser_sample_addresses_sample.csv"
+- **INPUT_CSV_FILE** = "./hairdresser_sample_addresses_sample.csv"
 *path and name for output csv file*
 
-- OUTPUT_CSV_FILE = "./processed.csv"
+- **OUTPUT_CSV_FILE** = "./processed.csv"
 *path and name for output csv file*
 
 ## Optional parameters
 
-- COMPONENTS_RESTRICTIONS_COLUMNS_NAME = {"country": "IsoCode"}
+- **COMPONENTS_RESTRICTIONS_COLUMNS_NAME** = {"country": "IsoCode"}
 *used to define component restrictions for google geocoding*
 *see [Google componentRestrictions doc](https://developers.google.com/maps/documentation/javascript/reference?hl=FR#GeocoderComponentRestrictions) for details* 
 
