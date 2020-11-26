@@ -21,7 +21,7 @@ LOCALITY_COLUMN_NAMES = ["Localidad", "PROV_NAME"]
 COMPONENT_RESTRICTIONS_COLUMNS_NAME = {}
 
 # appended columns name to processed data csv
-NEW_COLUMNS_NAME = ["Lat", "Long", "Error", "formatted_address", "location_type"]
+NEW_COLUMNS_NAME = ["Lat", "Long", "Error", "location_type"]
 
 # delimiter for input csv file
 DELIMITER = ","
